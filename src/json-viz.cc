@@ -1,8 +1,89 @@
 #include <iostream>
 #include <fstream>
+#include <algorithm>
+#include <iterator>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
+
+
+class PoolMap {
+    public:
+        PoolMap(json &j);
+        // do I want to check if the pool already exists?
+        void add_pool(const std::string &pool_name) { m_map.push_back({pool_name}); }
+        bool find_pool(const std::string &pool_name) {
+            for (auto found : m_map) {
+                if (pool_name == found[0])
+                    return true;
+            }
+            return false;
+        }
+        auto begin() { return m_map.begin();}
+        auto cbegin() { return m_map.cbegin();}
+        auto end() { return m_map.end(); }
+        auto cend() { return m_map.cend(); }
+        void print() {
+            for (auto pool: m_map) {
+                for (auto xstream: pool) {
+                    std::cout << xstream << " ";
+                }
+                std::cout << std::endl;
+            }
+        }
+
+    private:
+        /* The 'm_map' data structure is not a vector of strings, but a vector
+         * of a vector of strings.  I want to be able to both add pools to the
+         * map, and add xstreams to each pool.  I also want to be able to find
+         * pools by index in some cases */
+        std::vector<std::vector<std::string>> m_map;
+};
+
+PoolMap::PoolMap(json &j)
+{
+    /* the json file has a mapping between xstreams and the pools from which
+     * they draw work, but it's not in exactly the form we need.  Instead,
+     * something like this: a vector of vector of strings, [0] is name, [1...end] is the xstreams
+     *
+     * 0: {"pool1", "xs1", "xs2", "xs3"...}
+     * 1: {"pool2", "xs9, "xs10, "xs11"...}
+     * ...
+     *
+     */
+    auto pools = j.at("margo").at("argobots").at("pools");
+    for (auto pool_it = pools.begin(); pool_it != pools.end(); pool_it++)
+    {
+        std::vector<std::string> next { pool_it->at("name") };
+        m_map.push_back(next);
+    }
+
+    /* with all the pools indexed, now we can associate xstreams with them */
+    auto xstreams = j.at("margo").at("argobots").at("xstreams");
+    for (auto xstream_it = xstreams.begin(); xstream_it != xstreams.end(); xstream_it++) {
+        auto my_pools = xstream_it->at("scheduler").at("pools");
+        for(auto xpool_it = my_pools.begin();
+                xpool_it != my_pools.end();
+                xpool_it++)
+        {
+            /* An xstream with a given "name" will have in "xstreams.scheduler" an array
+             * of pools given by either names (strings) or indexes */
+            if (xpool_it->is_string() ) {
+                /* Pretty dense C++11 code here: each item in 'm_map' is itself
+                 * a vector.  See comment at top: first item of these vectors is the name of the
+                 * pool.  Requires a custom predicate to handle this odd arrangement */
+                auto xstream_pool = std::find_if(m_map.begin(), m_map.end(),
+                        [&xpool_it](const auto &haystack) { return (haystack[0] == xpool_it->get_ref<const std::string&>()); });
+                if (xstream_pool != m_map.end())
+                    xstream_pool->push_back(xstream_it->at("name"));
+            }
+            if (xpool_it->is_number() ) {
+                m_map[*xpool_it].push_back(xstream_it->at("name"));
+            }
+        }
+    }
+
+}
 
 /* hard lesson learned:  that 'cluster_' prefix in the name of the subgraph is
  * significant */
@@ -73,6 +154,16 @@ int main(int argc, char **argv)
         std::cout << "no margo entity found" << std::endl;
         return -1;
     }
+
+    PoolMap pools(j);
+
+    /*  If no __primary__ xstream is found by Margo, it will automatically be
+     *  added, along with a __primary__ pool */
+    if (pools.find_pool("__primary__")) {
+        pools.add_pool("__primary__");
+    }
+    pools.print();
+
 #if 0
     std::cout <<
         "margo progress_pool: " << j[json::json_pointer("/margo/progress_pool")] <<
