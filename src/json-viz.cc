@@ -32,6 +32,9 @@ class PoolMap {
             }
         }
 
+        std::vector<std::string> & operator [](std::size_t n) {return m_map[n]; }
+        const std::vector<std::string> & operator [](std::size_t n) const {return m_map[n]; }
+
     private:
         /* The 'm_map' data structure is not a vector of strings, but a vector
          * of a vector of strings.  I want to be able to both add pools to the
@@ -62,11 +65,17 @@ PoolMap::PoolMap(json &j)
     auto xstreams = j.at("margo").at("argobots").at("xstreams");
     /* from margo json documentation:
      * ```Note that one of the xstream must be
-     * named “__primary__”. If no __primary__ xstream is found by Margo, it
+     * named __primary__. If no __primary__ xstream is found by Margo, it
      * will automatically be added, along with a __primary__ pool. ``` */
     int found_primary = 0;
     for (auto xstream_it = xstreams.begin(); xstream_it != xstreams.end(); xstream_it++) {
-        if (xstream_it->at("name") == "__primary__")
+        std::stringstream xstream_name;
+        if (xstream_it->contains("name"))
+            xstream_name << xstream_it->at("name").get<std::string>();
+        else
+            xstream_name << "__xstream_" << xstream_it - xstreams.begin() << "__";
+
+        if (xstream_name.str() == "__primary__")
             found_primary=1;
         auto my_pools = xstream_it->at("scheduler").at("pools");
         for(auto xpool_it = my_pools.begin();
@@ -82,7 +91,7 @@ PoolMap::PoolMap(json &j)
                 auto xstream_pool = std::find_if(m_map.begin(), m_map.end(),
                         [&xpool_it](const auto &haystack) { return (haystack[0] == xpool_it->get_ref<const std::string&>()); });
                 if (xstream_pool != m_map.end())
-                    xstream_pool->push_back(xstream_it->at("name"));
+                    xstream_pool->push_back(xstream_name.str());
             }
             if (xpool_it->is_number() ) {
                 m_map[*xpool_it].push_back(xstream_it->at("name"));
@@ -99,6 +108,7 @@ PoolMap::PoolMap(json &j)
 void graph_header(std::stringstream & in, json & j)
 {
     in << "digraph pools {" << std::endl
+        << "   compound=true;" << std::endl
         << "   subgraph cluster_margo {" << std::endl
         << "   label=\"Margo\";" << std::endl;
 }
@@ -115,11 +125,25 @@ void graph_pools(std::stringstream &in, PoolMap &pools)
     for (auto list = pools.cbegin(); list != pools.cend(); list++) {
         in << "       subgraph cluster_pool" << list-pools.cbegin() << "{" << std::endl;
         in << "           label = \"" << (*list)[0] << "\";" << std::endl;
-        /* first entry in the 'pool map' is the pool itself */
+        /* a hidden point for this pool so we can connect providers to it later if need be */
+        in << "           " << (*list)[0] << " [shape=point style=invis] " << std::endl;
+        /* skipping [0]: first entry in the 'pool map' is the pool itself */
         for (size_t i=1; i< (*list).size(); i++) {
             in << "              " << (*list)[i] << ";" << std::endl;
         }
         in << "       }" << std::endl;
+    }
+}
+
+void graph_instance(std::stringstream &in, const std::string &name, json &j, PoolMap &pools)
+{
+    if(j.contains("pool")) {
+        if (j.at("pool").is_string() ) {
+            in << "    " << name << " -> " << j.at("pool").get<std::string>() << ";" << std::endl;
+        }
+        if (j.at("pool").is_number() ) {
+            in << "    " << name << " -> " << pools[j.at("pool").get<int>()][0] << ";" << std::endl;
+        }
     }
 }
 int main(int argc, char **argv)
@@ -142,6 +166,23 @@ int main(int argc, char **argv)
      * - providers point to associated pools */
     graph_header(graph_stream, j);
     graph_pools(graph_stream, pools);
+
+    /* these sections might have a single entity (e.g. always bedrock) or
+     * contain an array of json objects, so we need to handle both cases */
+    std::vector<std::string> sections = {"bedrock", "abt_io", "ssg", "clients", "providers"};
+    for (auto s : sections) {
+        if (j.contains(s)) {
+            if (j.at(s).is_array()) {
+                for (auto object = j.at(s).begin();
+                        object != j.at(s).end();
+                        object++) {
+                    graph_instance(graph_stream, object->at("name").get<std::string>(), *object, pools);
+                }
+            } else {
+                graph_instance(graph_stream, s, j.at(s), pools);
+            }
+        }
+    }
 
     graph_footer(graph_stream, j);
 
