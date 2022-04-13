@@ -60,7 +60,14 @@ PoolMap::PoolMap(json &j)
 
     /* with all the pools indexed, now we can associate xstreams with them */
     auto xstreams = j.at("margo").at("argobots").at("xstreams");
+    /* from margo json documentation:
+     * ```Note that one of the xstream must be
+     * named “__primary__”. If no __primary__ xstream is found by Margo, it
+     * will automatically be added, along with a __primary__ pool. ``` */
+    int found_primary = 0;
     for (auto xstream_it = xstreams.begin(); xstream_it != xstreams.end(); xstream_it++) {
+        if (xstream_it->at("name") == "__primary__")
+            found_primary=1;
         auto my_pools = xstream_it->at("scheduler").at("pools");
         for(auto xpool_it = my_pools.begin();
                 xpool_it != my_pools.end();
@@ -82,6 +89,8 @@ PoolMap::PoolMap(json &j)
             }
         }
     }
+    if (!found_primary)
+        m_map.push_back({"__primary__", "__primary__"});
 
 }
 
@@ -94,54 +103,24 @@ void graph_header(std::stringstream & in, json & j)
         << "   label=\"Margo\";" << std::endl;
 }
 
-/* for the given "pool", graph all the xstreams associated with it.  An xstream
- * can take work from one or more pools */
-void graph_xstreams(std::stringstream &in, const std::string &pool, json
-        &xstreams)
-{
-    for (auto xstream_it = xstreams.begin(); xstream_it != xstreams.end(); xstream_it++) {
-        for (auto pool_it = xstream_it->at("scheduler").at("pools").begin();
-                pool_it != xstream_it->at("scheduler").at("pools").end();
-                pool_it++) {
-            if (pool_it->is_string() && *pool_it == pool) {
-                in << "        subgraph cluster_xstream_" << xstream_it - xstreams.begin() << " {" << std::endl;
-                in << "            label = xs" << xstream_it - xstreams.begin() << std::endl;
-                in << "            " << xstream_it->at("name") << std::endl;
-                in << "        }" << std::endl;
-            }
-        }
-    }
-}
-/* not particularly efficient: O(n^2) with the number of xstreams.  but if
- * someone has a thousand xstreams we aren't going to visualize it all that
- * well! */
-void graph_progress_pool(std::stringstream &in, json &j)
-{
-    if (j.contains(json::json_pointer("/margo/progress_pool")) ) {
-        in << "    subgraph  cluster_progress_pool {" << std::endl;
-        in << "    label = \"Progress Pool:\";"
-           << "    " << j.at("margo").at("progress_pool") << std::endl;
-
-        graph_xstreams(in, j.at("margo").at("progress_pool"), j.at("margo").at("argobots").at("xstreams") );
-
-        in << "    }" << std::endl;
-    }
-
-    if (j.contains(json::json_pointer("/margo/rpc_pool")) ) {
-        in << "    subgraph  cluster_rpc_pool {" << std::endl;
-        in << "    label = \"RPC Pool:\" " << j.at("margo").at("rpc_pool") << std::endl;
-        in << "    " << j.at("margo").at("rpc_pool") << std::endl;
-
-        graph_xstreams(in, j.at("margo").at("rpc_pool"), j.at("margo").at("argobots").at("xstreams") );
-
-        in << "    }" << std::endl;
-    }
-}
 
 void graph_footer(std::stringstream &in, json &j)
 {
     in << "}" << std::endl; // margo subgraph
     in << "}" << std::endl; // overall digraph
+}
+
+void graph_pools(std::stringstream &in, PoolMap &pools)
+{
+    for (auto list = pools.cbegin(); list != pools.cend(); list++) {
+        in << "       subgraph cluster_pool" << list-pools.cbegin() << "{" << std::endl;
+        in << "           label = \"" << (*list)[0] << "\";" << std::endl;
+        /* first entry in the 'pool map' is the pool itself */
+        for (size_t i=1; i< (*list).size(); i++) {
+            in << "              " << (*list)[i] << ";" << std::endl;
+        }
+        in << "       }" << std::endl;
+    }
 }
 int main(int argc, char **argv)
 {
@@ -157,24 +136,12 @@ int main(int argc, char **argv)
 
     PoolMap pools(j);
 
-    /*  If no __primary__ xstream is found by Margo, it will automatically be
-     *  added, along with a __primary__ pool */
-    if (pools.find_pool("__primary__")) {
-        pools.add_pool("__primary__");
-    }
-    pools.print();
-
-#if 0
-    std::cout <<
-        "margo progress_pool: " << j[json::json_pointer("/margo/progress_pool")] <<
-        " margo rpc_pool: " << j[json::json_pointer("/margo/rpc_pool")];
-#endif
     /* Goal: produce a graphivis "digraph"
      * - pools are one subgraph
      * - execution streams are nodes in the associated pool subgraph
      * - providers point to associated pools */
     graph_header(graph_stream, j);
-    graph_progress_pool(graph_stream, j);
+    graph_pools(graph_stream, pools);
 
     graph_footer(graph_stream, j);
 
