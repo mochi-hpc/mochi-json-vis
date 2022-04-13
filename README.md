@@ -5,6 +5,12 @@ components, and to allow us to capture all the configuration in a single file.
 JSON is hard for me to stare at, though, so I thought a tool to depict the way
 pools, streams, and services all interact would help.
 
+For example, if you took [demo3.json](tests/demo3.json) and ran it through json-viz, you'd find an image like
+![a rendering of a JSON service](demo3.json.png)
+- Argobots pools are boxes
+- the xstreams drawing from that pool are inside those boxes
+- the external ovals are other Mochi services.  We draw arrows showing the Argobots pool associated with those services.
+
 ## Installation
 
 You'll need
