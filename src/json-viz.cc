@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <iterator>
 #include <nlohmann/json.hpp>
@@ -105,7 +106,7 @@ PoolMap::PoolMap(json &j)
 
 /* hard lesson learned:  that 'cluster_' prefix in the name of the subgraph is
  * significant */
-void graph_header(std::stringstream & in, json & j)
+void graph_header(std::stringstream & in)
 {
     in << "digraph pools {" << std::endl
         << "   compound=true;" << std::endl
@@ -114,7 +115,7 @@ void graph_header(std::stringstream & in, json & j)
 }
 
 
-void graph_footer(std::stringstream &in, json &j)
+void graph_footer(std::stringstream &in)
 {
     in << "}" << std::endl; // margo subgraph
     in << "}" << std::endl; // overall digraph
@@ -146,7 +147,7 @@ void graph_instance(std::stringstream &in, const std::string &name, json &j, Poo
         }
     }
 }
-int main(int argc, char **argv)
+int main(int, char **argv)
 {
     std::ifstream input(argv[1]);
     json j;
@@ -164,7 +165,7 @@ int main(int argc, char **argv)
      * - pools are one subgraph
      * - execution streams are nodes in the associated pool subgraph
      * - providers point to associated pools */
-    graph_header(graph_stream, j);
+    graph_header(graph_stream);
     graph_pools(graph_stream, pools);
 
     /* these sections might have a single entity (e.g. always bedrock) or
@@ -184,7 +185,7 @@ int main(int argc, char **argv)
         }
     }
 
-    graph_footer(graph_stream, j);
+    graph_footer(graph_stream);
 
     std::cout << graph_stream.str();
 }
