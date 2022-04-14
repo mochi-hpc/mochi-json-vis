@@ -3,6 +3,10 @@
 #include <sstream>
 #include <algorithm>
 #include <iterator>
+
+// this code is definitely not performance sensitive; glad to have more
+// information in output
+#define JSON_DIAGNOSTICS 1
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
