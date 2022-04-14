@@ -7,6 +7,9 @@
 
 using json = nlohmann::json;
 
+/* when rendering the associated xstreams with a pool, skip over some if we
+ * have more than this many (otherwise you'll need an exceedingly wide monitor) */
+const int MAX_XSTREAMS=5;
 
 class PoolMap {
     public:
@@ -128,11 +131,20 @@ void graph_pools(std::stringstream &in, PoolMap &pools)
         in << "           label = \"" << (*list)[0] << "\";" << std::endl;
         /* a hidden point for this pool so we can connect providers to it later if need be */
         in << "           " << (*list)[0] << " [shape=point style=invis] " << std::endl;
-        /* skipping [0]: first entry in the 'pool map' is the pool itself */
-        for (size_t i=1; i< (*list).size(); i++) {
-            in << "              " << (*list)[i] << ";" << std::endl;
+        /* if the list of associated xstreams is really large, the image is unusable.  */
+        if ( (*list).size() > MAX_XSTREAMS ) {
+            in << "              " << (*list)[1] << ";" << std::endl;
+            in << "              " << (*list)[2] << ";" << std::endl;
+            in << "              " << "\"...\";"            << std::endl;
+            in << "              " << list->back() << ";" << std::endl;
+            in << "       }" << std::endl;
+        } else {  /* smaller lists we can just print every item */
+            /* skipping [0]: first entry in the 'pool map' is the pool itself */
+            for (size_t i=1; i< (*list).size(); i++) {
+                in << "              " << (*list)[i] << ";" << std::endl;
+            }
+            in << "       }" << std::endl;
         }
-        in << "       }" << std::endl;
     }
 }
 
