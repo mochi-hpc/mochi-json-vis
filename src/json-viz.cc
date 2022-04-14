@@ -17,13 +17,14 @@ const int MAX_XSTREAMS=5;
 
 class PoolMap {
     public:
-        PoolMap(json &j);
+        explicit PoolMap(const json &j);
         // do I want to check if the pool already exists?
         void add_pool(const std::string &pool_name) { m_map.push_back({pool_name}); }
         bool find_pool(const std::string &pool_name) {
             for (auto found : m_map) {
-                if (pool_name == found[0])
+                if (pool_name == found[0]) {
                     return true;
+                }
             }
             return false;
         }
@@ -32,8 +33,8 @@ class PoolMap {
         auto end() { return m_map.end(); }
         auto cend() { return m_map.cend(); }
         void print() {
-            for (auto pool: m_map) {
-                for (auto xstream: pool) {
+            for (auto const &pool: m_map) {
+                for (auto const &xstream: pool) {
                     std::cout << xstream << " ";
                 }
                 std::cout << std::endl;
@@ -51,7 +52,7 @@ class PoolMap {
         std::vector<std::vector<std::string>> m_map;
 };
 
-PoolMap::PoolMap(json &j)
+PoolMap::PoolMap(const json &j)
 {
     /* the json file has a mapping between xstreams and the pools from which
      * they draw work, but it's not in exactly the form we need.  Instead,
@@ -63,10 +64,8 @@ PoolMap::PoolMap(json &j)
      *
      */
     auto pools = j.at("margo").at("argobots").at("pools");
-    for (auto pool_it = pools.begin(); pool_it != pools.end(); pool_it++)
-    {
-        std::vector<std::string> next { pool_it->at("name") };
-        m_map.push_back(next);
+    for (auto & pool : pools) {
+        m_map.push_back({pool.at("name")});
     }
 
     /* with all the pools indexed, now we can associate xstreams with them */
@@ -78,37 +77,37 @@ PoolMap::PoolMap(json &j)
     int found_primary = 0;
     for (auto xstream_it = xstreams.begin(); xstream_it != xstreams.end(); xstream_it++) {
         std::stringstream xstream_name;
-        if (xstream_it->contains("name"))
+        if (xstream_it->contains("name")) {
             xstream_name << xstream_it->at("name").get<std::string>();
-        else
+        } else {
             xstream_name << "__xstream_" << xstream_it - xstreams.begin() << "__";
+        }
 
-        if (xstream_name.str() == "__primary__")
+        if (xstream_name.str() == "__primary__") {
             found_primary=1;
+        }
         auto my_pools = xstream_it->at("scheduler").at("pools");
-        for(auto xpool_it = my_pools.begin();
-                xpool_it != my_pools.end();
-                xpool_it++)
-        {
+        for (auto xpool : my_pools) {
             /* An xstream with a given "name" will have in "xstreams.scheduler" an array
              * of pools given by either names (strings) or indexes */
-            if (xpool_it->is_string() ) {
+            if (xpool.is_string() ) {
                 /* Pretty dense C++11 code here: each item in 'm_map' is itself
                  * a vector.  See comment at top: first item of these vectors is the name of the
                  * pool.  Requires a custom predicate to handle this odd arrangement */
                 auto xstream_pool = std::find_if(m_map.begin(), m_map.end(),
-                        [&xpool_it](const auto &haystack) { return (haystack[0] == xpool_it->get_ref<const std::string&>()); });
-                if (xstream_pool != m_map.end())
+                        [&xpool](const auto &haystack) { return (haystack[0] == xpool.get_ref<const std::string&>()); });
+                if (xstream_pool != m_map.end()) {
                     xstream_pool->push_back(xstream_name.str());
+                }
             }
-            if (xpool_it->is_number() ) {
-                m_map[*xpool_it].push_back(xstream_it->at("name"));
+            if (xpool.is_number() ) {
+                m_map[xpool].push_back(xstream_it->at("name"));
             }
         }
     }
-    if (!found_primary)
+    if (found_primary == 0) {
         m_map.push_back({"__primary__", "__primary__"});
-
+    }
 }
 
 /* hard lesson learned:  that 'cluster_' prefix in the name of the subgraph is
@@ -152,7 +151,7 @@ void graph_pools(std::stringstream &in, PoolMap &pools)
     }
 }
 
-void graph_instance(std::stringstream &in, const std::string &name, json &j, PoolMap &pools)
+void graph_instance(std::stringstream &in, const std::string &name, const json &j, PoolMap &pools)
 {
     if(j.contains("pool")) {
         if (j.at("pool").is_string() ) {
@@ -175,7 +174,13 @@ int main(int argc, char **argv)
 
     std::ifstream input(argv[1]);
     json j;
-    input >> j;
+
+    try {
+        input >> j;
+    } catch (json::exception &e) {
+        std::cout << e.what() << std::endl;
+    }
+
     std::stringstream graph_stream;
 
     if (!j.contains("margo")) {
@@ -195,13 +200,11 @@ int main(int argc, char **argv)
     /* these sections might have a single entity (e.g. always bedrock) or
      * contain an array of json objects, so we need to handle both cases */
     std::vector<std::string> sections = {"bedrock", "abt_io", "ssg", "clients", "providers"};
-    for (auto s : sections) {
+    for (auto const &s : sections) {
         if (j.contains(s)) {
             if (j.at(s).is_array()) {
-                for (auto object = j.at(s).begin();
-                        object != j.at(s).end();
-                        object++) {
-                    graph_instance(graph_stream, object->at("name").get<std::string>(), *object, pools);
+                for (auto const& object : j.at(s) ) {
+                    graph_instance(graph_stream, object.at("name").get<std::string>(), object, pools);
                 }
             } else {
                 graph_instance(graph_stream, s, j.at(s), pools);
