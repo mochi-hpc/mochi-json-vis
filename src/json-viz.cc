@@ -147,8 +147,16 @@ void graph_instance(std::stringstream &in, const std::string &name, json &j, Poo
         }
     }
 }
-int main(int, char **argv)
+void usage(const std::string &program) {
+    std::cout << "usage:  " << program << " [json-file] " << std::endl;
+}
+int main(int argc, char **argv)
 {
+    if (argc != 2) {
+        usage(argv[0]);
+        return -1;
+    }
+
     std::ifstream input(argv[1]);
     json j;
     input >> j;
