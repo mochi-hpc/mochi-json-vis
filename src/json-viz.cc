@@ -115,24 +115,23 @@ PoolMap::PoolMap(const json &j)
 void graph_header(std::stringstream & in)
 {
     in << "digraph pools {" << std::endl
-        << "   compound=true;" << std::endl
-        << "   subgraph cluster_margo {" << std::endl
-        << "   label=\"Margo\";" << std::endl;
+        << "   compound=true;" << std::endl;
 }
 
 
 void graph_footer(std::stringstream &in)
 {
-    in << "}" << std::endl; // margo subgraph
     in << "}" << std::endl; // overall digraph
 }
 
 void graph_pools(std::stringstream &in, PoolMap &pools)
 {
+    in << "   subgraph cluster_margo {" << std::endl
+        << "   label=\"Margo\";" << std::endl;
     for (auto list = pools.cbegin(); list != pools.cend(); list++) {
         in << "       subgraph cluster_pool" << list-pools.cbegin() << "{" << std::endl;
         in << "           label = \"" << (*list)[0] <<
-                          "\n" << (*list).size()-1 <<" xstreams\";" << std::endl;
+                          "\\n" << (*list).size()-1 <<" xstreams\";" << std::endl;
         /* a hidden point for this pool so we can connect providers to it later if need be */
         in << "           " << (*list)[0] << " [shape=point style=invis] " << std::endl;
         /* if the list of associated xstreams is really large, the image is unusable.  */
@@ -150,6 +149,7 @@ void graph_pools(std::stringstream &in, PoolMap &pools)
             in << "       }" << std::endl;
         }
     }
+    in << "    }" << std::endl;
 }
 
 void graph_instance(std::stringstream &in, const std::string &name, const json &j, PoolMap &pools)
