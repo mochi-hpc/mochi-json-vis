@@ -1,0 +1,7 @@
+{
+	"__skeleton_comment__":"The only item in this file is a directive telling SSG to save its state to a known file so we can attach to it later",
+	"ssg":[
+		{"group_file":"skeleton.ssg"
+		}
+	]
+}
