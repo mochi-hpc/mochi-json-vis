@@ -63,13 +63,23 @@ PoolMap::PoolMap(const json &j)
      * ...
      *
      */
-    auto pools = j.at("margo").at("argobots").at("pools");
+    /* furthermore, the json file does not require every single section.  If a
+     * section is not in the json config, default values will be used */
+    json pools;
+    try {
+        pools = j.at("margo").at("argobots").at("pools");
+    } catch (...) {} // deliberatly ignoring missing items in the json object
+
     for (auto & pool : pools) {
         m_map.push_back({pool.at("name")});
     }
 
     /* with all the pools indexed, now we can associate xstreams with them */
-    auto xstreams = j.at("margo").at("argobots").at("xstreams");
+    json xstreams;
+    try {
+        xstreams = j.at("margo").at("argobots").at("xstreams");
+    } catch (...) {} // same as above: will fill in missing objects with defaults
+
     /* from margo json documentation:
      * ```Note that one of the xstream must be
      * named __primary__. If no __primary__ xstream is found by Margo, it
@@ -189,11 +199,6 @@ int main(int argc, char **argv)
 
     std::stringstream graph_stream;
 
-    if (!j.contains("margo")) {
-        std::cout << "no margo entity found" << std::endl;
-        return -1;
-    }
-
     PoolMap pools(j);
 
     /* Goal: produce a graphivis "digraph"
@@ -210,7 +215,9 @@ int main(int argc, char **argv)
         if (j.contains(s)) {
             if (j.at(s).is_array()) {
                 for (auto const& object : j.at(s) ) {
-                    graph_instance(graph_stream, object.at("name").get<std::string>(), object, pools);
+                    if (object.contains("name")) {
+                        graph_instance(graph_stream, object.at("name").get<std::string>(), object, pools);
+                    }
                 }
             } else {
                 graph_instance(graph_stream, s, j.at(s), pools);
