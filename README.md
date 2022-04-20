@@ -23,3 +23,7 @@ You'll need
 Feed it a json file as the first argument.  It will spit out `dot` on stdout.  I like to pipe the output to `dotty` to make PNGs
 
     json-viz service.json | dot -Tpng > service.png
+
+It can also take input from stdin if the filename argument is "-":
+
+    bedrock-query -s service.ssg tcp | json-viz - | dot -Tpng > service.png

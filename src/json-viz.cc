@@ -184,19 +184,23 @@ int main(int argc, char **argv)
     }
 
     json j;
-    std::ifstream input(argv[1]);
-    if (input) {
-        try {
-            input >> j;
-        } catch (json::exception &e) {
-            std::cout << e.what() << std::endl;
-            return -1;
+
+    try {
+        if (strcmp(argv[1], "-") == 0)
+            std::cin >> j;
+        else {
+            std::ifstream input(argv[1]);
+            if (input) {
+                input >> j;
+            } else {
+                std::cerr << "Unable to open file: " << strerror(errno) << std::endl;
+                return -1;
+            }
         }
-    } else {
-        std::cerr << "Unable to open file: " << strerror(errno) << std::endl;
+    } catch (json::exception &e) {
+        std::cout << e.what() << std::endl;
         return -1;
     }
-
     std::stringstream graph_stream;
 
     PoolMap pools(j);
