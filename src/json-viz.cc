@@ -111,7 +111,7 @@ PoolMap::PoolMap(const json &j)
                 }
             }
             if (xpool.is_number() ) {
-                m_map[xpool].push_back(xstream_it->at("name"));
+                m_map.at(xpool).push_back(xstream_it->at("name"));
             }
         }
     }
