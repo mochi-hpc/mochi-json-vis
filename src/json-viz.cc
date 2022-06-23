@@ -203,6 +203,11 @@ int main(int argc, char **argv)
     }
     std::stringstream graph_stream;
 
+    if (! j.is_object() ) {
+        std::cerr << "Malformed input: expected a JSON object; got " << j.type_name() << std::endl;
+        return -1;
+    }
+
     PoolMap pools(j);
 
     /* Goal: produce a graphivis "digraph"
