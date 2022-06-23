@@ -262,7 +262,7 @@ int main(int argc, char **argv)
             if (j.at(s).is_array()) {
                 for (auto const& object : j.at(s) ) {
                     if (object.contains("name")) {
-                        graph_instance(graph_stream, object.at("name").get<std::string>(), object, pools);
+                        graph_instance(graph_stream, object.at("name").get<std::string>()+"-"+s, object, pools);
                     }
                 }
             } else {
