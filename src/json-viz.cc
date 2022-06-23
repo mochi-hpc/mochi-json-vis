@@ -185,6 +185,16 @@ void graph_instance(std::stringstream &in, const std::string &name, const json &
 void usage(const std::string &program) {
     std::cout << "usage:  " << program << " [json-file] " << std::endl;
 }
+
+std::string string_from_file(std::istream& in)
+{
+    std::string json_string;
+    std::string line;
+    while (in >> line)
+        json_string += line;
+    return json_string;
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -192,25 +202,42 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    std::string json_string;
     json j;
 
-    try {
-        if (strcmp(argv[1], "-") == 0)
-            std::cin >> j;
-        else {
-            std::ifstream input(argv[1]);
-            if (input) {
-                input >> j;
-            } else {
-                std::cerr << "Unable to open file: " << strerror(errno) << std::endl;
-                return -1;
-            }
+    if (strcmp(argv[1], "-") == 0)
+        json_string = string_from_file(std::cin);
+    else {
+        std::ifstream input(argv[1]);
+        if (input) {
+            json_string = string_from_file(input);
+        } else {
+            std::cerr << "Unable to open file: " << strerror(errno) << std::endl;
+            return -1;
         }
-    } catch (json::exception &e) {
-        std::cout << e.what() << std::endl;
+    }
+
+    /* Normal JSON starts with braces.  Quintain prefixes the json with
+     * ```"quintain-provider" ```: if we run into a problem chop that part off
+     * and try again */
+
+    try {
+        j = json::parse(json_string);
+    } catch (json::parse_error &e) {
+
+        std::cerr << e.what() << std::endl;
+    }
+
+    size_t pos = json_string.find("{", 0);
+    std::string next(json_string, pos, std::string::npos);
+
+    try {
+        j = json::parse(next);
+    } catch(json::exception &e) {
+        std::cerr << e.what() << std::endl;
+        // we've failed twice now: giving up
         return -1;
     }
-    std::stringstream graph_stream;
 
     if (! j.is_object() ) {
         std::cerr << "Malformed input: expected a JSON object; got " << j.type_name() << std::endl;
@@ -218,6 +245,7 @@ int main(int argc, char **argv)
     }
 
     PoolMap pools(j);
+    std::stringstream graph_stream;
 
     /* Goal: produce a graphivis "digraph"
      * - pools are one subgraph
