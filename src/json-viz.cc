@@ -52,6 +52,15 @@ class PoolMap {
         std::vector<std::vector<std::string>> m_map;
 };
 
+/**
+ * nlohman-json provides a 'json' type which could be a whole bunch of types,
+ * or a "json object" containing types. If you happen to feed this PoolMap
+ * constructor something other than a "json object" json, it will result in an
+ * empty pool mapping.  Before calling this constructor I check the type.  At
+ * some point in the future, after I get more comforatable with exceptions,
+ * I'll verify this json thing is the correct type and throw an exception
+ * otherwise.
+ */
 PoolMap::PoolMap(const json &j)
 {
     /* the json file has a mapping between xstreams and the pools from which
